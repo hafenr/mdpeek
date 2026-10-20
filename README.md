@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="Resources/icon/icon.svg" alt="mdpeek logo" width="128">
+</p>
+
 # mdpeek
 
 A native macOS viewer for Markdown files with embedded Mermaid diagrams, rendered the way GitHub renders them.
