@@ -18,6 +18,16 @@ A native macOS viewer for Markdown files with embedded Mermaid diagrams, rendere
 
 ## Installation
 
+### Download
+
+Download `mdpeek.zip` from the [latest release](https://github.com/hafenr/mdpeek/releases/latest) (Apple Silicon, macOS 15 or later), unzip it, and move `mdpeek.app` to `~/Applications`. The app is not notarized by Apple, so macOS refuses to open the downloaded copy until you remove the quarantine flag:
+
+```sh
+xattr -dr com.apple.quarantine ~/Applications/mdpeek.app
+```
+
+### Build from source
+
 Requirements: macOS 15 or later, the Swift toolchain (Xcode, or the Command Line Tools via `xcode-select --install`), and Node.js with npm.
 
 1. Build the app from the project directory:
@@ -59,6 +69,14 @@ Quit mdpeek, then rebuild and replace the installed app:
 ```sh
 rm -rf ~/Applications/mdpeek.app ~/.local/bin/mdpeek
 defaults delete dev.mdpeek    # recent files and window layout
+```
+
+### Releasing
+
+Push a version tag. The Package workflow builds the app with that version and publishes a GitHub release with `mdpeek.zip`:
+
+```sh
+git tag v0.2.0 && git push origin v0.2.0
 ```
 
 ## Usage
