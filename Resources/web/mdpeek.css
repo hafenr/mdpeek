@@ -1,0 +1,388 @@
+body {
+  margin: 0;
+  background: #ffffff;
+}
+
+/* Referenced but not defined by github-markdown-css; values from GitHub Primer. */
+.markdown-body {
+  --bgColor-danger-muted: #ffebe9;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background: #0d1117;
+  }
+
+  .markdown-body {
+    --bgColor-danger-muted: #f851491a;
+  }
+}
+
+/* A slightly narrower column than github.com reads better in a window. */
+.markdown-body {
+  box-sizing: border-box;
+  min-width: 200px;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 40px 48px 64px;
+}
+
+.markdown-body[hidden] {
+  display: none;
+}
+
+.markdown-body pre code.hljs {
+  padding: 0;
+  background: transparent;
+}
+
+.markdown-body .mermaid-diagram {
+  margin-bottom: var(--base-size-16);
+  text-align: center;
+}
+
+.markdown-body .mermaid-error {
+  margin-bottom: var(--base-size-16);
+  overflow: hidden;
+  border: 1px solid var(--borderColor-danger-emphasis);
+  border-radius: 6px;
+}
+
+.markdown-body .mermaid-error-message {
+  padding: var(--base-size-8) var(--base-size-16);
+  color: var(--fgColor-danger);
+  background: var(--bgColor-danger-muted);
+  font-family: var(--fontStack-monospace);
+  font-size: 85%;
+  white-space: pre-wrap;
+}
+
+.markdown-body .mermaid-error pre {
+  margin: 0;
+  padding-right: 0;
+  padding-left: 0;
+  border-radius: 0;
+  counter-reset: line;
+}
+
+.markdown-body .mermaid-error .line {
+  display: block;
+  min-height: 1lh;
+  padding: 0 var(--base-size-16) 0 var(--base-size-8);
+}
+
+.markdown-body .mermaid-error .line::before {
+  display: inline-block;
+  width: 2em;
+  margin-right: var(--base-size-16);
+  color: var(--fgColor-muted);
+  text-align: right;
+  content: counter(line);
+  counter-increment: line;
+  user-select: none;
+}
+
+.markdown-body .mermaid-error .error-line {
+  background: var(--bgColor-danger-muted);
+}
+
+.markdown-body .mermaid-error mark {
+  color: inherit;
+  background: transparent;
+  text-decoration: underline wavy var(--fgColor-danger);
+  text-decoration-skip-ink: none;
+}
+
+/* Small icon buttons on code blocks and diagrams. */
+.markdown-body .md-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  min-width: 28px;
+  justify-content: center;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--fgColor-muted);
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  cursor: default;
+}
+
+.markdown-body .md-button:hover,
+.markdown-body .md-button[aria-pressed="true"] {
+  color: var(--fgColor-default);
+  background: var(--bgColor-neutral-muted);
+}
+
+.markdown-body .md-button.done {
+  color: var(--fgColor-success);
+}
+
+.markdown-body .md-button:focus-visible {
+  outline: 2px solid var(--focus-outlineColor);
+  outline-offset: -2px;
+}
+
+.markdown-body .md-button .octicon {
+  fill: currentColor;
+}
+
+/* Code blocks: language label and copy button above the code. */
+.markdown-body .code-block {
+  margin-bottom: var(--base-size-16);
+  overflow: hidden;
+  border: 1px solid var(--borderColor-muted);
+  border-radius: 6px;
+  background: var(--bgColor-muted);
+}
+
+.markdown-body .code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 32px;
+  padding: 2px 4px 2px 12px;
+  border-bottom: 1px solid var(--borderColor-muted);
+  color: var(--fgColor-muted);
+  font-family: var(--fontStack-monospace);
+  font-size: 12px;
+}
+
+.markdown-body .code-block pre {
+  border-radius: 0;
+}
+
+/* Diagrams: a framed figure with a toolbar that appears on hover. */
+.markdown-body .mermaid-figure {
+  position: relative;
+  margin-bottom: var(--base-size-16);
+  padding: 40px 16px 16px;
+  border: 1px solid var(--borderColor-muted);
+  border-radius: 8px;
+}
+
+.markdown-body .mermaid-diagram {
+  text-align: center;
+}
+
+.markdown-body .mermaid-toolbar {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.markdown-body .mermaid-figure:hover .mermaid-toolbar,
+.markdown-body .mermaid-toolbar:focus-within {
+  opacity: 1;
+}
+
+.markdown-body .mermaid-source {
+  margin: 16px -16px -16px;
+  border-top: 1px solid var(--borderColor-muted);
+  border-radius: 0 0 8px 8px;
+  text-align: left;
+}
+
+.markdown-body .mermaid-source[hidden] {
+  display: none;
+}
+
+/* A diagram opened full window. */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  box-sizing: border-box;
+  padding: 48px;
+  background: var(--page-bg);
+}
+
+.lightbox svg {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.lightbox .md-button {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+
+/* "Reloaded" notice. */
+:root {
+  --page-bg: #ffffff;
+  --ink: #23262b;
+  --lime: #c6f05a;
+  --muted: #59636e;
+  --line: #d1d9e0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page-bg: #0d1117;
+    --muted: #9198a1;
+    --line: #3d444d;
+  }
+}
+
+#toast {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 6px 12px;
+  border-radius: 999px;
+  color: #ffffff;
+  background: var(--ink);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.18);
+  font: 12px -apple-system, BlinkMacSystemFont, sans-serif;
+  opacity: 0;
+  transform: translate(-50%, -8px);
+  transition: opacity 160ms ease-out, transform 160ms ease-out;
+  pointer-events: none;
+}
+
+#toast::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--lime);
+  content: "";
+}
+
+#toast.visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+@media (prefers-color-scheme: dark) {
+  #toast {
+    border: 1px solid #3d444d;
+    background: #1f2328;
+  }
+}
+
+/* Start page. */
+#welcome {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  min-height: 100vh;
+  padding: 32px 16px 56px;
+  color: var(--ink);
+  font: 13px -apple-system, BlinkMacSystemFont, sans-serif;
+  text-align: center;
+}
+
+#welcome[hidden] {
+  display: none;
+}
+
+#welcome h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+#welcome .drop-zone {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  width: min(560px, 100%);
+  height: 168px;
+  border: 1.5px dashed #b9bfcc;
+  border-radius: 14px;
+  transition: border-color 120ms, background-color 120ms;
+}
+
+body.dragging #welcome .drop-zone {
+  border-color: var(--ink);
+  background: rgb(198 240 90 / 0.18);
+}
+
+#welcome .drop-zone p {
+  margin: 0;
+  color: var(--muted);
+}
+
+#welcome button.primary {
+  height: 32px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 8px;
+  color: #ffffff;
+  background: var(--ink);
+  font: inherit;
+  font-weight: 500;
+}
+
+#welcome button.primary:focus-visible {
+  outline: 3px solid var(--lime);
+  outline-offset: 2px;
+}
+
+#welcome .shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 22px;
+  margin: 0;
+  padding: 0;
+  color: var(--muted);
+  font-size: 12px;
+  list-style: none;
+}
+
+#welcome kbd,
+#welcome code {
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--ink);
+  font: 11px ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+#welcome kbd {
+  margin-right: 4px;
+  border-bottom-width: 2px;
+  font-family: inherit;
+}
+
+@media (prefers-color-scheme: dark) {
+  #welcome,
+  #welcome kbd,
+  #welcome code {
+    color: #e6edf3;
+  }
+
+  #welcome .drop-zone {
+    border-color: #3d444d;
+  }
+
+  body.dragging #welcome .drop-zone {
+    border-color: var(--lime);
+  }
+
+  #welcome button.primary {
+    color: var(--ink);
+    background: var(--lime);
+  }
+}

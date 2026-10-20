@@ -1,0 +1,96 @@
+import AppKit
+import UniformTypeIdentifiers
+
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    private lazy var windowController = MainWindowController()
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        NSApp.mainMenu = makeMainMenu()
+    }
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        windowController.showWindow(nil)
+    }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        urls.forEach(windowController.open)
+        windowController.showWindow(nil)
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        true
+    }
+
+    @objc func openDocument(_ sender: Any?) {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = Markdown.fileExtensions.compactMap { UTType(filenameExtension: $0) }
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        windowController.open(url)
+    }
+
+    private func makeMainMenu() -> NSMenu {
+        let mainMenu = NSMenu()
+
+        let appMenu = submenu(of: mainMenu, title: "mdpeek")
+        appMenu.addItem(withTitle: "About mdpeek", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Hide mdpeek", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        appMenu.addItem(withTitle: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
+            .keyEquivalentModifierMask = [.command, .option]
+        appMenu.addItem(withTitle: "Show All", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Quit mdpeek", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+
+        let fileMenu = submenu(of: mainMenu, title: "File")
+        fileMenu.addItem(withTitle: "Open…", action: #selector(openDocument(_:)), keyEquivalent: "o")
+        fileMenu.addItem(withTitle: "Open in Editor", action: #selector(MainWindowController.openInEditor(_:)), keyEquivalent: "o")
+            .keyEquivalentModifierMask = [.command, .option]
+        fileMenu.addItem(.separator())
+        fileMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        fileMenu.addItem(.separator())
+        fileMenu.addItem(withTitle: "Export as PDF…", action: #selector(MainWindowController.exportPDF(_:)), keyEquivalent: "e")
+            .keyEquivalentModifierMask = [.command, .shift]
+        fileMenu.addItem(withTitle: "Print…", action: #selector(MainWindowController.printDocument(_:)), keyEquivalent: "p")
+
+        let editMenu = submenu(of: mainMenu, title: "Edit")
+        editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editMenu.addItem(.separator())
+        let findMenu = NSMenu(title: "Find")
+        editMenu.addItem(withTitle: "Find", action: nil, keyEquivalent: "").submenu = findMenu
+        findMenu.addItem(withTitle: "Find…", action: #selector(MainWindowController.showFind(_:)), keyEquivalent: "f")
+        findMenu.addItem(withTitle: "Find Next", action: #selector(MainWindowController.findNext(_:)), keyEquivalent: "g")
+        findMenu.addItem(withTitle: "Find Previous", action: #selector(MainWindowController.findPrevious(_:)), keyEquivalent: "g")
+            .keyEquivalentModifierMask = [.command, .shift]
+
+        let viewMenu = submenu(of: mainMenu, title: "View")
+        viewMenu.addItem(withTitle: "Toggle Sidebar", action: #selector(NSSplitViewController.toggleSidebar(_:)), keyEquivalent: "s")
+            .keyEquivalentModifierMask = [.command, .control]
+        viewMenu.addItem(.separator())
+        viewMenu.addItem(withTitle: "Actual Size", action: #selector(MainWindowController.actualSize(_:)), keyEquivalent: "0")
+        viewMenu.addItem(withTitle: "Zoom In", action: #selector(MainWindowController.zoomIn(_:)), keyEquivalent: "+")
+        let zoomInAlternate = viewMenu.addItem(withTitle: "Zoom In", action: #selector(MainWindowController.zoomIn(_:)), keyEquivalent: "=")
+        zoomInAlternate.isHidden = true
+        zoomInAlternate.allowsKeyEquivalentWhenHidden = true
+        viewMenu.addItem(withTitle: "Zoom Out", action: #selector(MainWindowController.zoomOut(_:)), keyEquivalent: "-")
+        viewMenu.addItem(.separator())
+        viewMenu.addItem(withTitle: "Enter Full Screen", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
+            .keyEquivalentModifierMask = [.command, .control]
+
+        let windowMenu = submenu(of: mainMenu, title: "Window")
+        windowMenu.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        windowMenu.addItem(withTitle: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
+        windowMenu.addItem(.separator())
+        windowMenu.addItem(withTitle: "Bring All to Front", action: #selector(NSApplication.arrangeInFront(_:)), keyEquivalent: "")
+        NSApp.windowsMenu = windowMenu
+
+        return mainMenu
+    }
+
+    private func submenu(of menu: NSMenu, title: String) -> NSMenu {
+        let submenu = NSMenu(title: title)
+        menu.addItem(withTitle: title, action: nil, keyEquivalent: "").submenu = submenu
+        return submenu
+    }
+}

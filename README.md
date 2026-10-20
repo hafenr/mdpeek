@@ -1,0 +1,72 @@
+# mdpeek
+
+A native macOS viewer for Markdown files with embedded Mermaid diagrams, rendered the way GitHub renders them.
+
+- GitHub Flavored Markdown via [cmark-gfm](https://github.com/swiftlang/swift-cmark) (the parser GitHub uses): tables, task lists, footnotes, autolinks, alerts (`> [!NOTE]`), heading anchors, syntax highlighting, sanitized raw HTML.
+- ```` ```mermaid ```` blocks are rendered as diagrams in colors matching the page. Hover a diagram to copy it as SVG, show its source, or open it full window. A diagram that fails to parse shows its source with line numbers, the error message, and the offending line/token highlighted; the rest of the document renders normally.
+- Code blocks show their language and a Copy button.
+- Reloads automatically when the file changes (including atomic saves by editors such as vim or VS Code), keeping the scroll position anchored to the content you were looking at, and the zoom level. A short notice confirms each reload.
+- Sidebar (⌃⌘S or the toolbar button) with recently opened files, a filter, and the outline of the current document; the section you are reading is highlighted, and clicking a heading jumps to it. Right-click a file to show it in Finder or remove it.
+- Find in the document (⌘F, ⌘G / ⇧⌘G), zoom control, Open in Editor (⌥⌘O, the default app for the file other than mdpeek), Share, Print (⌘P) and Export as PDF (⇧⌘E).
+- Status bar with word count, reading time and the current section.
+- A start page while no file is open: drop a file on the window or use Open File….
+- Light and dark mode follow the system.
+
+## Installation
+
+Requirements: macOS 15 or later, the Swift toolchain (Xcode, or the Command Line Tools via `xcode-select --install`), and Node.js with npm.
+
+1. Build the app from the project directory:
+
+   ```sh
+   ./build.sh          # produces build/mdpeek.app
+   ```
+
+2. Install it and open it once, so macOS registers it for Finder's "Open With" and the command-line launcher:
+
+   ```sh
+   cp -R build/mdpeek.app ~/Applications/
+   open ~/Applications/mdpeek.app
+   ```
+
+   Use `/Applications` instead to install it for all users.
+
+3. Optionally, install the `mdpeek` command:
+
+   ```sh
+   mkdir -p ~/.local/bin
+   ln -s "$PWD/bin/mdpeek" ~/.local/bin/mdpeek
+   ```
+
+   `~/.local/bin` must be on your `PATH` (e.g. add `export PATH="$HOME/.local/bin:$PATH"` to `~/.zshrc`). The command is a link into this checkout, so keep the checkout where it is.
+
+4. Optionally, make mdpeek the default app for Markdown files: select a `.md` file in Finder, choose File › Get Info (⌘I), pick mdpeek under "Open with", and click Change All….
+
+### Updating
+
+Quit mdpeek, then rebuild and replace the installed app:
+
+```sh
+./build.sh && rm -rf ~/Applications/mdpeek.app && cp -R build/mdpeek.app ~/Applications/
+```
+
+### Uninstalling
+
+```sh
+rm -rf ~/Applications/mdpeek.app ~/.local/bin/mdpeek
+defaults delete dev.mdpeek    # recent files and window layout
+```
+
+## Usage
+
+```sh
+mdpeek README.md
+```
+
+Or use File › Open… (⌘O), drop a file on the Dock icon, or pick mdpeek from Finder's "Open With". Zoom with ⌘+ / ⌘- / ⌘0 or pinch. Links to other Markdown files open in mdpeek; other links open in the default app.
+
+## Layout
+
+- `Sources/mdpeek` – the AppKit app: window with sidebar, `WKWebView` preview, FSEvents file watcher, cmark-gfm rendering.
+- `Resources/AppIcon.icns`, `Resources/icon/` – the app icon and its SVG sources; `scripts/make_icon.py` regenerates them.
+- `Resources/web` – the page that displays the rendered HTML (`mdpeek.js` handles sanitizing, alerts, highlighting, Mermaid, and scroll preservation). Its third-party libraries are pinned in `package.json` and copied into the app bundle by `build.sh`.
