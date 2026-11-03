@@ -6,7 +6,7 @@
 
 <p align="center"><b>Ogle at your Markdown files... with vim.</b></p>
 
-- Markdown with Mermaid diagrams, syntax highlighting and alerts
+- Markdown with Mermaid diagrams, syntax highlighting, alerts and front matter
 - Neovim built in, with your own config, beside the preview
 - Linked panes: the editor and the preview scroll and zoom together, or apart
 - Reloads on save and highlights what changed

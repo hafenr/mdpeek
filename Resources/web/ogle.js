@@ -239,9 +239,9 @@ window.ogle = (() => {
 
   function postOutline() {
     const headings = [...headingElements()].map((heading) => ({
-      id: heading.id, level: Number(heading.tagName[1]), title: heading.textContent.trim(),
+      id: heading.id, level: Number(heading.tagName[1]), title: heading.textContent.replace(/\s+/g, " ").trim(),
     }));
-    const text = [...content.children].filter((block) => !block.matches(".mermaid-figure, .code-block"))
+    const text = [...content.children].filter((block) => !block.matches(".mermaid-figure, .code-block, .front-matter"))
       .map((block) => block.innerText).join(" ");
     native({ type: "outline", headings, words: (text.match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu) ?? []).length });
   }
