@@ -59,7 +59,9 @@ Requirements: macOS 15 or later, the Swift toolchain (Xcode, or the Command Line
 
 ### Updating
 
-Quit Ogle, then rebuild and replace the installed app:
+Ogle checks for updates once a day and offers to install them; Ogle › Check for Updates… checks right away. Builds from source check too, and are offered the release that follows the commit they were built from.
+
+To update a build from source by hand, quit Ogle, then rebuild and replace the installed app:
 
 ```sh
 ./build.sh && rm -rf ~/Applications/Ogle.app && cp -R build/Ogle.app ~/Applications/
@@ -74,7 +76,7 @@ defaults delete dev.ogle    # recent files and window layout
 
 ### Releasing
 
-Releases are built, signed and notarized on a Mac with the Developer ID certificate, and published with the [GitHub CLI](https://cli.github.com). Once, save notary credentials with `xcrun notarytool store-credentials ogle-notary` and log in with `gh auth login`. Then, on an up-to-date `main` with everything committed:
+Releases are built, signed and notarized on a Mac with the Developer ID certificate, and published with the [GitHub CLI](https://cli.github.com). Once, save notary credentials with `xcrun notarytool store-credentials ogle-notary` and log in with `gh auth login`. The key that signs updates is in the login keychain of the Mac that made it; to release from another Mac, export it with `.build/artifacts/sparkle/Sparkle/bin/generate_keys -x ogle-update-key` and import it there with `-f ogle-update-key`. Then, on an up-to-date `main` with everything committed:
 
 ```sh
 scripts/release.sh          # shows the latest release and the next version

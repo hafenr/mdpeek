@@ -1,9 +1,11 @@
 import AppKit
+import Sparkle
 import UniformTypeIdentifiers
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var windowController = MainWindowController()
+    private let updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = makeMainMenu()
@@ -38,6 +40,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let appMenu = submenu(of: mainMenu, title: "Ogle")
         appMenu.addItem(withTitle: "About Ogle", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(withTitle: "Check for Updates…", action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)), keyEquivalent: "")
+            .target = updaterController
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Hide Ogle", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         appMenu.addItem(withTitle: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")

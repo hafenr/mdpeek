@@ -7,6 +7,7 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/swiftlang/swift-cmark.git", from: "0.9.0"),
         .package(url: "https://github.com/migueldeicaza/SwiftTerm.git", from: "1.99.1"),
+        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.10.1"),
     ],
     targets: [
         .executableTarget(
@@ -15,7 +16,9 @@ let package = Package(
                 .product(name: "cmark-gfm", package: "swift-cmark"),
                 .product(name: "cmark-gfm-extensions", package: "swift-cmark"),
                 .product(name: "SwiftTerm", package: "SwiftTerm"),
-            ]
+                .product(name: "Sparkle", package: "Sparkle"),
+            ],
+            linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]
         ),
     ]
 )

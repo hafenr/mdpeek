@@ -1,12 +1,14 @@
 #!/bin/bash
 # Releases Ogle: builds the app signed with the Developer ID, notarizes it, tags the version,
-# pushes main and the tag, and publishes a GitHub release with Ogle.zip.
+# pushes main and the tag, and publishes a GitHub release with Ogle.zip and the appcast.xml
+# that installed copies check for updates.
 #
 #   scripts/release.sh            prints the latest release and the usage
 #   scripts/release.sh 0.3.2      releases v0.3.2 from main
 #
 # Needs the Developer ID Application certificate in the keychain, notary credentials saved
-# as "ogle-notary" (xcrun notarytool store-credentials ogle-notary), and gh logged in.
+# as "ogle-notary" (xcrun notarytool store-credentials ogle-notary), Sparkle's update signing
+# key in the keychain (see "Releasing" in the README), and gh logged in.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -37,6 +39,9 @@ command -v gh > /dev/null || fail "the GitHub CLI is missing: brew install gh"
 gh auth status > /dev/null 2>&1 || fail "gh is not logged in: gh auth login"
 security find-identity -v -p codesigning | grep -q "Developer ID Application" \
   || fail "no Developer ID Application certificate in the keychain"
+swift package resolve
+sparkle=.build/artifacts/sparkle/Sparkle/bin
+"$sparkle/generate_keys" -p > /dev/null || fail "no Sparkle update signing key in the keychain"
 
 echo "Fetching origin…"
 git fetch --quiet --tags origin
@@ -53,6 +58,11 @@ fi
 echo "Releasing $tag from $(git log -1 --format='%h %s')"
 VERSION="$version" SIGN_IDENTITY="Developer ID Application" ./build.sh
 scripts/notarize.sh
+updates=build/updates
+rm -rf "$updates"
+mkdir "$updates"
+cp build/Ogle.zip "$updates/"
+"$sparkle/generate_appcast" --download-url-prefix "https://github.com/hafenr/ogle/releases/download/$tag/" "$updates"
 
 echo
 echo "Built and notarized build/Ogle.app ($tag). Commits since ${previous:-the start}:"
@@ -63,5 +73,5 @@ read -r -p "Tag, push and publish $tag? [y/N] " answer
 
 git tag -a "$tag" -m "Ogle $tag"
 git push origin main "$tag"
-gh release create "$tag" build/Ogle.zip --title "Ogle $tag" --generate-notes --verify-tag
+gh release create "$tag" build/Ogle.zip "$updates/appcast.xml" --title "Ogle $tag" --generate-notes --verify-tag
 echo "Released $tag: $(gh release view "$tag" --json url --jq .url)"

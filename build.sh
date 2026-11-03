@@ -18,18 +18,28 @@ if [[ ! -d "$nvim" ]]; then
   mv "$nvim.partial" "$nvim"
 fi
 
+# VERSION for a release; otherwise the latest tag plus the commits since it (v0.3.2 and 5 more
+# commits make 0.3.2.5), so the updater sees a build of main as newer than the release it
+# follows and older than the next one.
+if [[ -z "${VERSION:-}" ]]; then
+  IFS=- read -r tag commits _ <<<"$(git describe --tags --match 'v*' --long)"
+  VERSION="${tag#v}.$commits"
+fi
+
 npm ci --no-audit --no-fund --loglevel=error
 swift build -c release
+bin=$(swift build -c release --show-bin-path)
 
 app=build/Ogle.app
 web="$app/Contents/Resources/web"
+sparkle="$app/Contents/Frameworks/Sparkle.framework"
 rm -rf "$app"
-mkdir -p "$app/Contents/MacOS" "$web/vendor"
-cp "$(swift build -c release --show-bin-path)/Ogle" "$app/Contents/MacOS/"
+mkdir -p "$app/Contents/MacOS" "$app/Contents/Frameworks" "$web/vendor"
+cp "$bin/Ogle" "$app/Contents/MacOS/"
+cp -R "$bin/Sparkle.framework" "$app/Contents/Frameworks/"
 cp Resources/Info.plist "$app/Contents/"
-if [[ -n "${VERSION:-}" ]]; then
-  plutil -replace CFBundleShortVersionString -string "$VERSION" "$app/Contents/Info.plist"
-fi
+plutil -replace CFBundleShortVersionString -string "$VERSION" "$app/Contents/Info.plist"
+plutil -replace CFBundleVersion -string "$VERSION" "$app/Contents/Info.plist"
 cp Resources/AppIcon.icns Resources/ogle.lua "$app/Contents/Resources/"
 mkdir -p "$app/Contents/Resources/neovim/share"
 cp -R "$nvim/bin" "$nvim/lib" "$app/Contents/Resources/neovim/"
@@ -45,14 +55,20 @@ cp node_modules/@highlightjs/cdn-assets/styles/github.min.css "$web/vendor/highl
 cp node_modules/@highlightjs/cdn-assets/styles/github-dark.min.css "$web/vendor/highlight-github-dark.css"
 
 # Signed ad hoc by default. With SIGN_IDENTITY set (for example "Developer ID Application"),
-# signed for distribution: Neovim's parsers and binary first, then the app, all with the
-# hardened runtime and a secure timestamp. scripts/notarize.sh then notarizes the result.
+# signed for distribution: Neovim's parsers and binary, then Sparkle's helpers and framework,
+# then the app, all with the hardened runtime and a secure timestamp. scripts/notarize.sh then
+# notarizes the result.
 if [[ -n "${SIGN_IDENTITY:-}" ]]; then
   sign=(codesign --force --timestamp --options runtime --sign "$SIGN_IDENTITY")
   find "$app/Contents/Resources/neovim/lib" -name '*.so' -exec "${sign[@]}" {} +
   # LuaJIT compiles Lua to machine code at run time in memory it makes executable with
   # mprotect, not MAP_JIT, which the hardened runtime kills nvim for without this entitlement.
   "${sign[@]}" --entitlements Resources/nvim.entitlements "$app/Contents/Resources/neovim/bin/nvim"
+  # In the order Sparkle's documentation gives, without --deep, which would drop the
+  # Downloader service's own entitlements.
+  "${sign[@]}" "$sparkle/Versions/B/XPCServices/Installer.xpc"
+  "${sign[@]}" --preserve-metadata=entitlements "$sparkle/Versions/B/XPCServices/Downloader.xpc"
+  "${sign[@]}" "$sparkle/Versions/B/Autoupdate" "$sparkle/Versions/B/Updater.app" "$sparkle"
   "${sign[@]}" "$app"
   codesign --verify --strict --deep "$app"
 else
