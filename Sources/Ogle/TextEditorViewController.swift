@@ -54,6 +54,16 @@ final class TextEditorViewController: NSViewController, NSTextViewDelegate, NSTe
         }
     }
     var focusView: NSView { textView }
+    /// Asks whether to save over the file at the URL, which another app changed since it was read;
+    /// tests answer for the user.
+    var confirmOverwriting: (URL) -> Bool = { url in
+        let alert = NSAlert()
+        alert.messageText = "“\(url.lastPathComponent)” was changed by another app since you opened it."
+        alert.informativeText = "Saving replaces those changes with the text in the editor."
+        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: "Save Anyway")
+        return alert.runModal() == .alertSecondButtonReturn
+    }
 
     private let scrollView = ScrollView(frame: NSRect(x: 0, y: 0, width: 400, height: 400))
     private let textView = NSTextView(usingTextLayoutManager: false)
@@ -125,12 +135,7 @@ final class TextEditorViewController: NSViewController, NSTextViewDelegate, NSTe
     func save() {
         guard let current else { return }
         if Buffer.modificationDate(of: current.url) != current.modificationDate {
-            let alert = NSAlert()
-            alert.messageText = "“\(current.url.lastPathComponent)” was changed by another app since you opened it."
-            alert.informativeText = "Saving replaces those changes with the text in the editor."
-            alert.addButton(withTitle: "Cancel")
-            alert.addButton(withTitle: "Save Anyway")
-            guard alert.runModal() == .alertSecondButtonReturn else { return }
+            guard confirmOverwriting(current.url) else { return }
         }
         let text = current.storage.string
         do {

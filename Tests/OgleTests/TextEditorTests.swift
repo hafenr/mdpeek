@@ -9,6 +9,12 @@ struct EditorState: Equatable {
     var file: String
 }
 
+/// Which files saving asked about overwriting, and what the editor and the file then hold.
+struct SaveOutcome: Equatable {
+    var asked: [String]
+    var state: EditorState
+}
+
 @MainActor
 final class TextEditorTests: XCTestCase {
     /// A text editor in a window of its own, showing a new file holding `text`.
@@ -83,6 +89,43 @@ final class TextEditorTests: XCTestCase {
         XCTAssertEqual(
             [whileAway ? "unsaved" : "saved", try state(of: editor, url).text],
             ["unsaved", "new text"])
+    }
+
+    /// Saves, recording what it asks, answering `answer`.
+    func save(_ editor: TextEditorViewController, _ url: URL, answering answer: Bool) throws -> SaveOutcome {
+        var asked: [String] = []
+        editor.confirmOverwriting = { url in
+            asked.append(url.lastPathComponent)
+            return answer
+        }
+        editor.save()
+        return SaveOutcome(asked: asked, state: try state(of: editor, url))
+    }
+
+    func testSavingAFileNoOtherAppChangedDoesNotAsk() throws {
+        let (editor, url) = try makeEditor("text")
+        type("mine ", into: editor)
+        XCTAssertEqual(
+            try save(editor, url, answering: false),
+            SaveOutcome(asked: [], state: EditorState(text: "mine text", unsaved: false, file: "mine text")))
+    }
+
+    func testSavingAFileAnotherAppChangedAsksAndCancellingKeepsTheirs() throws {
+        let (editor, url) = try makeEditor("text")
+        type("mine ", into: editor)
+        try "theirs".write(to: url, atomically: true, encoding: .utf8)
+        XCTAssertEqual(
+            try save(editor, url, answering: false),
+            SaveOutcome(asked: ["document.md"], state: EditorState(text: "mine text", unsaved: true, file: "theirs")))
+    }
+
+    func testSavingAnywayReplacesTheOtherAppsChanges() throws {
+        let (editor, url) = try makeEditor("text")
+        type("mine ", into: editor)
+        try "theirs".write(to: url, atomically: true, encoding: .utf8)
+        XCTAssertEqual(
+            try save(editor, url, answering: true),
+            SaveOutcome(asked: ["document.md"], state: EditorState(text: "mine text", unsaved: false, file: "mine text")))
     }
 
     func testReloadsWhenAnotherAppChangesTheFile() throws {

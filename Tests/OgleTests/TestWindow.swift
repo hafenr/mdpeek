@@ -92,15 +92,27 @@ final class TestWindow {
         }
         controller.toggleEditor(nil)
         try wait("the editor to show the document") { self.editorTop() == 1 }
+        if let terminal = controller.editor.focusView as? TerminalView {
+            // Without line numbers, Neovim reports that its text needs the inset, and the
+            // layout changes once more.
+            try wait("Neovim's text to move from the pane's edge") { terminal.frame.minX > 0 }
+        }
         try waitForThePageToTakeItsWidth()
     }
 
     /// The page learns of a new width late: a scroll before then is undone, as its resize
-    /// handler puts the line it follows back at the top.
+    /// handler puts back what it showed. Waits until the page has had the preview's width for a
+    /// moment.
     func waitForThePageToTakeItsWidth() throws {
         let webView = controller.preview.webView!
+        var since: Date?
         try wait("the page to take the width of the preview") {
-            try self.script("return innerWidth") as? Int == Int(webView.bounds.width)
+            guard try self.script("return innerWidth") as? Int == Int(webView.bounds.width) else {
+                since = nil
+                return false
+            }
+            since = since ?? Date()
+            return Date().timeIntervalSince(since!) > 0.3
         }
     }
 
@@ -138,6 +150,18 @@ final class TestWindow {
             const rect = element.getBoundingClientRect();
             window.scrollTo(0, rect.top + scrollY + fraction * rect.height);
             """, ["line": line, "fraction": fraction])
+    }
+
+    /// Types `text` at the start of the document, as the user would.
+    func typeInEditor(_ text: String) {
+        switch controller.editor.focusView {
+        case let textView as NSTextView:
+            textView.insertText(text, replacementRange: NSRange(location: 0, length: 0))
+        case let terminal as TerminalView:
+            terminal.send(txt: "\u{1b}ggI\(text)\u{1b}")
+        default:
+            XCTFail("No editor")
+        }
     }
 
     /// Jumps to the heading of `line` as the outline in the sidebar does.
@@ -238,6 +262,14 @@ final class TestWindow {
     }
 
     // MARK: Observing
+
+    /// The section the status bar shows: "Download · 3 of 9".
+    func statusBarSection() -> String? {
+        func fields(_ view: NSView) -> [NSTextField] {
+            ((view as? NSTextField).map { [$0] } ?? []) + view.subviews.flatMap(fields)
+        }
+        return fields(controller.window!.contentView!).map(\.stringValue).first { $0.contains(" of ") }
+    }
 
     /// The editor running in the pane, as its view tells.
     var runningEditor: EditorViewController.Kind? {

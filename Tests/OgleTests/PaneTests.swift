@@ -18,6 +18,28 @@ class PaneTests: EditorTestCase {
             [Self.kind!.title, otherKind.title, otherKind.title, otherKind.title])
     }
 
+    func testUnsavedChangesShowInTheWindowAndInThePreviewWithHowToSave() throws {
+        let window = try makeWindow()
+        window.typeInEditor("x")
+        let notice = { try window.script("return document.getElementById('unsaved')?.textContent ?? null") as? String }
+        _ = try? window.wait("the notice", timeout: 3) { try notice() != nil }
+        XCTAssertEqual(
+            [try notice(), window.controller.window!.isDocumentEdited ? "edited" : "not edited"],
+            ["Showing last save · \(Self.kind == .text ? "⌘S" : ":w") to update", "edited"])
+    }
+
+    func testSaveIsOnlyAvailableInTheTextEditor() throws {
+        let window = try makeWindow()
+        let save = NSMenuItem(title: "Save", action: #selector(MainWindowController.saveDocument(_:)), keyEquivalent: "s")
+        XCTAssertEqual(window.controller.validateMenuItem(save), Self.kind == .text)
+    }
+
+    func testTheNextLaunchStartsTheEditorChosen() throws {
+        let window = try makeWindow()
+        window.controller.switchEditor(to: otherKind)
+        XCTAssertEqual(EditorViewController(resources: URL(filePath: "/"), environment: [:]).kind, otherKind)
+    }
+
     /// Without line numbers, as both editors start here.
     func testTheTextStartsAwayFromThePanesLeftEdge() throws {
         let window = try makeWindow()
