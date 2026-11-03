@@ -316,19 +316,23 @@ window.ogle = (() => {
     toastTimer = setTimeout(() => document.getElementById("toast")?.classList.remove("visible"), delay);
   }
 
-  // A pill at the top right while the editor has unsaved changes, which the page does not show.
-  function showUnsavedNotice(shown) {
+  // A pill at the top right while the editor has unsaved changes, which the page does not show,
+  // naming the `shortcut` that saves them (":w"); none hides it.
+  function showUnsavedNotice(shortcut) {
     let notice = document.getElementById("unsaved");
-    if (!shown) {
+    if (!shortcut) {
       notice?.remove();
       return;
     }
-    if (notice) return;
-    notice = document.createElement("div");
-    notice.id = "unsaved";
-    notice.setAttribute("role", "status");
-    notice.innerHTML = "Showing last save · <kbd>:w</kbd> to update";
-    document.body.append(notice);
+    if (!notice) {
+      notice = document.createElement("div");
+      notice.id = "unsaved";
+      notice.setAttribute("role", "status");
+      document.body.append(notice);
+    }
+    const key = document.createElement("kbd");
+    key.textContent = shortcut;
+    notice.replaceChildren("Showing last save · ", key, " to update");
   }
 
   // After a reload, tints the top-level blocks that are new or changed (fading out) and says
@@ -959,17 +963,24 @@ window.ogle = (() => {
     window.scrollTo({ top: line > 1 ? top : 0 });
   }
 
-  // The Markdown source line at the top of the window: the inverse of scrollToSourceLine.
+  // The Markdown source line at the top of the window, with how far through it the top is:
+  // the inverse of scrollToSourceLine. Between two blocks, it is the first line of the one
+  // below, rather than the blank line that usually separates them in the source.
   function sourceLineAtTop() {
     let line = 1;
+    let pastBlock = false;
     for (const element of content.querySelectorAll("[data-sourcepos]")) {
       const rect = element.getBoundingClientRect();
-      if (rect.top > 0) break;
       if (!rect.height) continue;
       const [start, end] = sourceLines(element);
+      if (rect.top > 0) {
+        if (pastBlock) line = start;
+        break;
+      }
+      pastBlock = -rect.top >= rect.height;
       line = start + Math.min(-rect.top / rect.height, 1) * (end - start + 1);
     }
-    return Math.floor(line);
+    return Math.round(line * 1000) / 1000;
   }
 
   return { render, showWelcome, scrollToHeading, followSourceLine, sourceLineAtTop, find, findNext, clearFind, showUnsavedNotice, setCursorLine, setRecentFiles, focusOpenQuickly };

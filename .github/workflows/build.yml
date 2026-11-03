@@ -22,3 +22,7 @@ jobs:
 
       - name: Build
         run: ./build.sh
+
+      # The tests drive the app built above.
+      - name: Test
+        run: swift test

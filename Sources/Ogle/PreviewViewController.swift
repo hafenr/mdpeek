@@ -19,8 +19,8 @@ struct RecentFile {
 
 @MainActor
 final class PreviewViewController: NSViewController, WKNavigationDelegate, WKScriptMessageHandler {
-    private let pageURL = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "web")!
-    private var webView: DropTargetWebView!
+    private let pageURL: URL
+    private(set) var webView: DropTargetWebView!
     private let findBar = FindBarView()
     /// The web view's top: at the top of the view, under the toolbar, or below the find bar.
     private var webViewTop: NSLayoutConstraint!
@@ -36,7 +36,7 @@ final class PreviewViewController: NSViewController, WKNavigationDelegate, WKScr
     var onOutlineChange: (([Heading]) -> Void)?
     var onSectionChange: ((String?) -> Void)?
     /// Called with the source line at the top of the view as the user scrolls it.
-    var onScroll: ((Int) -> Void)?
+    var onScroll: ((Double) -> Void)?
     var onZoomChange: ((CGFloat) -> Void)?
     var onWordCountChange: ((Int) -> Void)?
     /// Called with the current section as the status bar shows it: "Download · 3 of 9".
@@ -50,9 +50,17 @@ final class PreviewViewController: NSViewController, WKNavigationDelegate, WKScr
         didSet { sendRecentFiles() }
     }
 
+    /// `resources` holds the page, in web/.
+    init(resources: URL) {
+        pageURL = resources.appending(path: "web/index.html")
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
     var documentURL: URL? { document?.url }
     /// The source line kept at the top of the view while it follows the editor.
-    var sourceLine: Int? {
+    var sourceLine: Double? {
         didSet {
             guard isPageLoaded else { return }
             webView.callAsyncJavaScript(
@@ -70,11 +78,14 @@ final class PreviewViewController: NSViewController, WKNavigationDelegate, WKScr
         }
     }
     /// Whether to note that the preview shows the last save while the editor has unsaved changes.
-    var showsUnsavedNotice = false {
+    /// While the editor has unsaved changes, how to save them (":w"), which a notice that the
+    /// page shows the last save names.
+    var unsavedChangesShortcut: String? {
         didSet {
-            guard isPageLoaded, showsUnsavedNotice != oldValue else { return }
+            guard isPageLoaded, unsavedChangesShortcut != oldValue else { return }
             webView.callAsyncJavaScript(
-                "ogle.showUnsavedNotice(shown)", arguments: ["shown": showsUnsavedNotice], in: nil, in: .page)
+                "ogle.showUnsavedNotice(shortcut)", arguments: ["shortcut": unsavedChangesShortcut ?? NSNull()],
+                in: nil, in: .page)
         }
     }
     var zoom: CGFloat {
@@ -135,7 +146,7 @@ final class PreviewViewController: NSViewController, WKNavigationDelegate, WKScr
         watcher = nil
         sourceLine = nil
         cursorLine = nil
-        showsUnsavedNotice = false
+        unsavedChangesShortcut = nil
         headings = []
         currentHeadingID = nil
         guard isPageLoaded else { return }
@@ -176,10 +187,10 @@ final class PreviewViewController: NSViewController, WKNavigationDelegate, WKScr
     }
 
     /// The source line at the top of the view, as the page computes it now.
-    func sourceLineAtTop() async throws -> Int? {
+    func sourceLineAtTop() async throws -> Double? {
         guard isPageLoaded, document != nil else { return nil }
         let line = try await webView.callAsyncJavaScript("return ogle.sourceLineAtTop()", contentWorld: .page)
-        return (line as? NSNumber)?.intValue
+        return (line as? NSNumber)?.doubleValue
     }
 
     private func sendRecentFiles() {
@@ -335,7 +346,7 @@ final class PreviewViewController: NSViewController, WKNavigationDelegate, WKScr
             guard let path = body["path"] as? String else { return }
             onRemoveRecent?(URL(fileURLWithPath: path))
         case "scroll":
-            guard let line = (body["line"] as? NSNumber)?.intValue else { return }
+            guard let line = (body["line"] as? NSNumber)?.doubleValue else { return }
             onScroll?(line)
         case "open":
             NSApp.sendAction(#selector(AppDelegate.openDocument(_:)), to: nil, from: self)
@@ -366,8 +377,9 @@ final class PreviewViewController: NSViewController, WKNavigationDelegate, WKScr
         guard !isPageLoaded else { return }
         isPageLoaded = true
         sendRecentFiles()
-        if showsUnsavedNotice {
-            webView.callAsyncJavaScript("ogle.showUnsavedNotice(true)", in: nil, in: .page)
+        if let unsavedChangesShortcut {
+            webView.callAsyncJavaScript(
+                "ogle.showUnsavedNotice(shortcut)", arguments: ["shortcut": unsavedChangesShortcut], in: nil, in: .page)
         }
         if let cursorLine {
             webView.callAsyncJavaScript("ogle.setCursorLine(line)", arguments: ["line": cursorLine], in: nil, in: .page)
@@ -401,7 +413,7 @@ final class PreviewViewController: NSViewController, WKNavigationDelegate, WKScr
 
 /// Opens Markdown files dropped on the view. WebKit does not load dropped files in apps built
 /// against current SDKs, so the drop is handled here instead of by the page.
-private final class DropTargetWebView: WKWebView {
+final class DropTargetWebView: WKWebView {
     var onDropMarkdown: ((URL) -> Void)?
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {

@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 private extension NSToolbarItem.Identifier {
     static let find = Self("find")
     static let editor = Self("editor")
+    static let editorKind = Self("editorKind")
     static let more = Self("more")
 }
 
@@ -13,7 +14,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
 {
     private let recents = RecentFiles()
     private let sidebar: SidebarViewController
-    private let editor = EditorViewController()
+    let editor: EditorViewController
     private let sidebarItem: NSSplitViewItem
     private let editorItem: NSSplitViewItem
     private let content: ContentViewController
@@ -22,28 +23,33 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     private var editorSplitView: NSSplitView { content.split.splitView }
     /// The width of the editor when last shown.
     private var editorWidth: CGFloat?
-    private let preview = PreviewViewController()
+    let preview: PreviewViewController
     /// Whether the editor and the preview scroll together and share a zoom level. While
     /// unlinked, zooming applies to whichever has focus.
-    private var linked = true
+    private(set) var linked = true
     private enum Pane { case editor, preview }
     /// The pane the user last scrolled or zoomed while unlinked: linking again brings the other
     /// one to it.
     private var lastActivePane: Pane?
-    private var editorTopLine: (url: URL, line: Int)?
+    private var editorTopLine: (url: URL, line: Double)?
     private var editorCursorLine: (url: URL, line: Int)?
-    /// Whether the preview outlines the block holding Neovim's cursor, while linked.
+    /// Whether the preview outlines the block holding the editor's cursor, while linked.
     private var highlightsCursor = UserDefaults.standard.object(forKey: "highlightCursor") as? Bool ?? true {
         didSet { UserDefaults.standard.set(highlightsCursor, forKey: "highlightCursor") }
     }
     /// The source line at the top of the preview, once scrolled away from the top.
-    private var previewTopLine: Int?
+    private var previewTopLine: Double?
     private var findButton: NSButton?
     private var editorButton: NSButton?
+    private var editorKindPopUp: NSPopUpButton?
     /// The picker behind the More menu's Share item.
     private var sharePicker: NSSharingServicePicker?
 
-    init() {
+    /// `resources` is the app's Resources folder, and `editorEnvironment` replaces variables of
+    /// Neovim's environment: tests pass a built app's and a HOME of their own.
+    init(resources: URL = Bundle.main.resourceURL!, editorEnvironment: [String: String] = [:]) {
+        preview = PreviewViewController(resources: resources)
+        editor = EditorViewController(resources: resources, environment: editorEnvironment)
         sidebar = SidebarViewController(recents: recents)
         let split = NSSplitViewController()
         sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebar)
@@ -133,7 +139,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         }
     }
 
-    /// Closes the file, and Neovim with it after asking about unsaved changes, and shows the
+    /// Closes the file, and the editor with it after asking about unsaved changes, and shows the
     /// start page with the file at the top of the recent files.
     @objc func closeFile(_ sender: Any?) {
         guard let url = preview.documentURL, confirmDiscardingEditorChanges() else { return }
@@ -195,7 +201,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         return true
     }
 
-    /// While Neovim has unsaved changes, marks the window as edited, adds "— Edited" to the
+    /// While the editor has unsaved changes, marks the window as edited, adds "— Edited" to the
     /// subtitle, and tells the preview it shows the last save.
     private func updateEditedState() {
         let edited = editor.hasUnsavedChanges
@@ -204,7 +210,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
             let folder = (url.deletingLastPathComponent().path as NSString).abbreviatingWithTildeInPath
             window?.subtitle = edited ? "\(folder) — Edited" : folder
         }
-        preview.showsUnsavedNotice = edited
+        preview.unsavedChangesShortcut = edited ? editor.saveShortcut : nil
     }
 
     private func setEditorVisible(_ visible: Bool) {
@@ -213,12 +219,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
             editorSplitView.layoutSubtreeIfNeeded()
             // At its last width, or the first time sharing the space evenly with the preview.
             editorSplitView.setPosition(editorWidth ?? editorSplitView.bounds.width / 2, ofDividerAt: 0)
-            if let url = preview.documentURL {
-                // Where the preview is, if scrolled; otherwise where Neovim shows the file.
-                let line = linked ? previewTopLine : nil
-                if let line { editorTopLine = (url, line) }
-                editor.open(url, atLine: line)
-            }
+            openDocumentInEditor()
         } else {
             editorWidth = editor.view.frame.width
             editorItem.isCollapsed = true
@@ -228,6 +229,15 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         updateCursorLine()
         window?.makeFirstResponder(visible ? editor.focusView : preview.focusView)
         updateSourceLine()
+    }
+
+    /// Shows the displayed file in the editor: where the preview is, if scrolled; otherwise where
+    /// the editor shows the file.
+    private func openDocumentInEditor() {
+        guard let url = preview.documentURL else { return }
+        let line = linked ? previewTopLine : nil
+        if let line { editorTopLine = (url, editor.shownLine(line)) }
+        editor.open(url, atLine: line)
     }
 
     private func updateSourceLine() {
@@ -241,7 +251,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         previewTopLine = editorTopLine.line
     }
 
-    /// Marks, in the preview, the block holding Neovim's cursor: while linked, with the editor
+    /// Marks, in the preview, the block holding the editor's cursor: while linked, with the editor
     /// shown on the same file, unless turned off in the View menu.
     private func updateCursorLine() {
         guard highlightsCursor, linked, !editorItem.isCollapsed, let editorCursorLine, let url = preview.documentURL,
@@ -253,23 +263,23 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         preview.cursorLine = editorCursorLine.line
     }
 
-    private func previewScrolled(to line: Int) {
+    private func previewScrolled(to line: Double) {
         previewTopLine = line
         if !linked { lastActivePane = .preview }
         guard linked, !editorItem.isCollapsed, let url = preview.documentURL else { return }
-        editorTopLine = (url, line)
+        editorTopLine = (url, editor.shownLine(line))
         editor.scroll(url, toLine: line)
     }
 
     /// Asks whether to discard unsaved changes in the editor, if there are any. Returns
-    /// whether to go ahead, after ending Neovim.
+    /// whether to go ahead, after ending the editor.
     func confirmDiscardingEditorChanges() -> Bool {
         guard editor.hasUnsavedChanges else { return true }
         showWindow(nil)
         if editorItem.isCollapsed { setEditorVisible(true) }
         let alert = NSAlert()
         alert.messageText = "Discard the unsaved changes in the editor?"
-        alert.informativeText = "Neovim has unsaved changes. Save them with :w first to keep them."
+        alert.informativeText = "Save them with \(editor.saveShortcut) first to keep them."
         alert.addButton(withTitle: "Cancel")
         alert.addButton(withTitle: "Discard Changes").hasDestructiveAction = true
         guard alert.runModal() == .alertSecondButtonReturn else { return false }
@@ -285,6 +295,45 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
 
     @objc func toggleEditor(_ sender: Any?) {
         setEditorVisible(editorItem.isCollapsed)
+    }
+
+    @objc func saveDocument(_ sender: Any?) {
+        editor.save()
+    }
+
+    @objc func chooseEditor(_ sender: NSMenuItem) {
+        switchEditor(to: EditorViewController.Kind(rawValue: sender.representedObject as! String)!)
+    }
+
+    @objc private func chooseEditorInPopUp(_ sender: NSPopUpButton) {
+        switchEditor(to: EditorViewController.Kind(rawValue: sender.selectedItem!.representedObject as! String)!)
+    }
+
+    /// Switches the editor between Neovim and the text editor, after asking about unsaved changes.
+    /// The new editor shows the line the old one had at the top, and, while linked, the preview
+    /// moves to that line too, from wherever in it the preview was.
+    func switchEditor(to kind: EditorViewController.Kind) {
+        defer { updateEditorKindPopUp() }
+        guard kind != editor.kind, confirmDiscardingEditorChanges() else { return }
+        let url = preview.documentURL
+        let line = editorTopLine.flatMap { top in
+            url.map { top.url.resolvingSymlinksInPath() == $0.resolvingSymlinksInPath() } == true ? top.line : nil
+        }
+        editor.stop()
+        editor.kind = kind
+        editorTopLine = nil
+        editorCursorLine = nil
+        updateCursorLine()
+        guard !editorItem.isCollapsed, let url else { return }
+        if let line { editorTopLine = (url, editor.shownLine(line)) }
+        editor.open(url, atLine: line)
+        updateSourceLine()
+        window?.makeFirstResponder(editor.focusView)
+    }
+
+    /// Shows the editor's kind in the toolbar's pop-up, also after a switch was cancelled.
+    private func updateEditorKindPopUp() {
+        editorKindPopUp?.selectItem(at: editorKindPopUp?.indexOfItem(withRepresentedObject: editor.kind.rawValue) ?? -1)
     }
 
     @objc func toggleLinked(_ sender: Any?) {
@@ -320,7 +369,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
             Task {
                 // Asks the page: previewTopLine only changes as the preview is scrolled, so it
                 // misses reloads that moved the text since. No line yet: the preview is at the top.
-                let line: Int
+                let line: Double
                 do {
                     line = try await self.preview.sourceLineAtTop() ?? self.previewTopLine ?? 1
                 } catch {
@@ -329,7 +378,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
                 }
                 guard self.linked, self.preview.documentURL == url else { return }
                 self.previewTopLine = line
-                self.editorTopLine = (url, line)
+                self.editorTopLine = (url, self.editor.shownLine(line))
                 self.editor.scroll(url, toLine: line)
             }
         }
@@ -454,6 +503,11 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         case #selector(printDocument(_:)), #selector(exportPDF(_:)), #selector(openInEditor(_:)), #selector(closeFile(_:)),
             #selector(showFind(_:)), #selector(findNext(_:)), #selector(findPrevious(_:)), #selector(toggleEditor(_:)):
             return preview.documentURL != nil
+        case #selector(saveDocument(_:)):
+            return editor.canSave && !editorItem.isCollapsed
+        case #selector(chooseEditor(_:)):
+            menuItem.state = menuItem.representedObject as? String == editor.kind.rawValue ? .on : .off
+            return true
         case #selector(toggleCursorHighlight(_:)):
             menuItem.state = highlightsCursor ? .on : .off
             return true
@@ -481,7 +535,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     // MARK: NSToolbarDelegate
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace, .find, .editor, .more]
+        [.toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace, .find, .editorKind, .editor, .more]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -516,6 +570,22 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
             let item = NSToolbarItem(itemIdentifier: itemIdentifier)
             item.label = "Editor"
             item.view = button
+            return item
+        case .editorKind:
+            let popUp = NSPopUpButton(frame: .zero, pullsDown: false)
+            popUp.bezelStyle = .toolbar
+            for kind in EditorViewController.Kind.allCases {
+                popUp.addItem(withTitle: kind.title)
+                popUp.lastItem!.representedObject = kind.rawValue
+            }
+            popUp.target = self
+            popUp.action = #selector(chooseEditorInPopUp(_:))
+            popUp.toolTip = "Editor"
+            editorKindPopUp = popUp
+            updateEditorKindPopUp()
+            let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+            item.label = "Editor Kind"
+            item.view = popUp
             return item
         case .more:
             let item = NSMenuToolbarItem(itemIdentifier: itemIdentifier)

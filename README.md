@@ -7,7 +7,7 @@
 <p align="center"><b>Ogle at your Markdown files... with vim.</b></p>
 
 - Markdown with Mermaid diagrams, syntax highlighting, alerts and front matter
-- Neovim built in, with your own config, beside the preview
+- Neovim built in, with your own config, beside the preview, or a plain Mac text editor, chosen in the toolbar
 - Linked panes: the editor and the preview scroll and zoom together, or apart
 - Reloads on save and highlights what changed
 - Find with match counts, an outline sidebar, and Open Quickly for recent files
@@ -74,6 +74,14 @@ rm -rf ~/Applications/Ogle.app ~/.local/bin/ogle
 defaults delete dev.ogle    # recent files and window layout
 ```
 
+### Testing
+
+The tests drive the app `build.sh` built, in a window they keep invisible: its page, the text editor, and Neovim with a home directory of its own, so without your configuration.
+
+```sh
+./build.sh && swift test
+```
+
 ### Releasing
 
 Releases are built, signed and notarized on a Mac with the Developer ID certificate, and published with the [GitHub CLI](https://cli.github.com). Once, save notary credentials with `xcrun notarytool store-credentials ogle-notary` and log in with `gh auth login`. The key that signs updates is in the login keychain of the Mac that made it; to release from another Mac, export it with `.build/artifacts/sparkle/Sparkle/bin/generate_keys -x ogle-update-key` and import it there with `-f ogle-update-key`. Then, on an up-to-date `main` with everything committed:
@@ -99,6 +107,7 @@ Or use File › Open… (⌘O), drop a file on the Dock icon, or pick Ogle from 
 | ⇧⌘W | Close the file and go back to the start page |
 | ⌘F, ⌘G / ⇧⌘G | Find, next / previous match |
 | ⌃⌘E | Show or hide the editor |
+| ⌘S | Save, in the text editor (Neovim saves with `:w`) |
 | ⌃⌘S | Show or hide the sidebar |
 | ⌘+ / ⌘− / ⌘0 | Zoom in / out / actual size |
 | ⌥⌘O | Open in the default editor |

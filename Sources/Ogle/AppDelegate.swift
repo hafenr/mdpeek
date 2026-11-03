@@ -60,12 +60,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         fileMenu.addItem(withTitle: "Close File", action: #selector(MainWindowController.closeFile(_:)), keyEquivalent: "w")
             .keyEquivalentModifierMask = [.command, .shift]
         fileMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        fileMenu.addItem(withTitle: "Save", action: #selector(MainWindowController.saveDocument(_:)), keyEquivalent: "s")
         fileMenu.addItem(.separator())
         fileMenu.addItem(withTitle: "Export as PDF…", action: #selector(MainWindowController.exportPDF(_:)), keyEquivalent: "e")
             .keyEquivalentModifierMask = [.command, .shift]
         fileMenu.addItem(withTitle: "Print…", action: #selector(MainWindowController.printDocument(_:)), keyEquivalent: "p")
 
         let editMenu = submenu(of: mainMenu, title: "Edit")
+        editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
+            .keyEquivalentModifierMask = [.command, .shift]
+        editMenu.addItem(.separator())
+        editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
         editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
         editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
@@ -82,6 +88,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .keyEquivalentModifierMask = [.command, .control]
         viewMenu.addItem(withTitle: "Toggle Editor", action: #selector(MainWindowController.toggleEditor(_:)), keyEquivalent: "e")
             .keyEquivalentModifierMask = [.command, .control]
+        let editorMenu = NSMenu(title: "Editor")
+        viewMenu.addItem(withTitle: "Editor", action: nil, keyEquivalent: "").submenu = editorMenu
+        for kind in EditorViewController.Kind.allCases {
+            editorMenu.addItem(withTitle: kind.title, action: #selector(MainWindowController.chooseEditor(_:)), keyEquivalent: "")
+                .representedObject = kind.rawValue
+        }
         viewMenu.addItem(withTitle: "Link Editor and Preview", action: #selector(MainWindowController.toggleLinked(_:)), keyEquivalent: "")
         viewMenu.addItem(withTitle: "Highlight Cursor in Preview", action: #selector(MainWindowController.toggleCursorHighlight(_:)), keyEquivalent: "")
         viewMenu.addItem(.separator())
