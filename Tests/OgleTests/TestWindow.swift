@@ -280,11 +280,13 @@ final class TestWindow {
         }
     }
 
-    /// The tops once they are `expected`, or as they are when that does not happen in time.
+    /// The tops once they are `expected`, or as they are when that does not happen in time. Reads
+    /// them every 0.1 s: scripts run back to back can hold off the page's own updates.
     func tops(becoming expected: Tops) throws -> Tops {
-        do {
-            try wait("the tops to become \(expected)", timeout: 5) { try self.tops() == expected }
-        } catch is Timeout {}
+        let deadline = Date(timeIntervalSinceNow: 5)
+        while try tops() != expected && Date() < deadline {
+            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.1))
+        }
         return try tops()
     }
 
