@@ -7,7 +7,7 @@
 <p align="center"><b>Ogle at your Markdown files... with vim.</b></p>
 
 - Markdown with Mermaid diagrams, syntax highlighting, alerts and front matter
-- Neovim built in, with your own config, beside the preview, or a plain Mac text editor, chosen in the toolbar
+- Neovim built in, with your own config, beside the preview, or a plain Mac text editor, chosen in Settings
 - Linked panes: the editor and the preview scroll and zoom together, or apart
 - Reloads on save and highlights what changed
 - Find with match counts, an outline sidebar, and Open Quickly for recent files
@@ -97,7 +97,7 @@ scripts/release.sh 0.3.3    # builds, signs, notarizes, then asks before tagging
 ogle README.md
 ```
 
-Or use File › Open… (⌘O), drop a file on the Dock icon, or pick Ogle from Finder's "Open With". Zoom with ⌘+ / ⌘- / ⌘0 or pinch; pinching magnifies the preview only, and never changes the editor's text size, which follows ⌘+ / ⌘- / ⌘0 alone. Links to other Markdown files open in Ogle; other links open in the default app.
+Or use File › Open… (⌘O), drop a file on the Dock icon, or pick Ogle from Finder's "Open With". Zoom with ⌘+ / ⌘- / ⌘0 or pinch; pinching magnifies the preview only, and never changes the editor's text size, which follows ⌘+ / ⌘- / ⌘0 alone. Links to other Markdown files open in Ogle; other links open in the default app. A diagram's Open full window button shows it on its own: scroll or drag to move around it, and pinch, ⌘-scroll or ⌘+ / ⌘- / ⌘0 to zoom; Esc closes it.
 
 ## Keyboard shortcuts
 

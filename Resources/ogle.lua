@@ -1,7 +1,8 @@
 -- Connects the Neovim of Ogle's editor pane to Ogle, over the socket in $OGLE_SOCKET.
 -- Loaded with --cmd, before the user's configuration. Both sides send JSON objects, one per
 -- line: Neovim reports the first line shown in a window, the line of the cursor, whether any
--- buffer has unsaved changes and its background color, and Ogle asks it to open the files it displays and to
+-- buffer has unsaved changes, its background color and whether text starts at the screen's left
+-- edge, and Ogle asks it to open the files it displays and to
 -- scroll to the line at the top of the preview. $OGLE_LINE, if set, is the line to show
 -- the file at once Neovim's terminal UI has attached, which sets the size of its windows.
 
@@ -113,6 +114,21 @@ local function report_modified()
   end
 end
 
+-- Whether a window at the left edge of the screen shows its text from the very first column,
+-- without line numbers, signs or folds before it, which Ogle keeps away from the pane's edge.
+local flush_left
+local function report_flush_left()
+  local tab = vim.fn.tabpagenr()
+  local flush = vim.iter(vim.fn.getwininfo()):any(function(info)
+    return info.tabnr == tab and info.wincol == 1 and info.textoff == 0
+      and vim.api.nvim_win_get_config(info.winid).relative == ""
+  end)
+  if flush ~= flush_left then
+    flush_left = flush
+    send({ event = "flushLeft", value = flush })
+  end
+end
+
 -- Reports the cursor's line in the current file, at most every 50 ms, so the preview can
 -- outline the block it is in.
 local cursor_timer = vim.uv.new_timer()
@@ -123,6 +139,8 @@ local function report_cursor()
   if vim.bo[buffer].buftype ~= "" then
     return
   end
+  -- Signs come and go as the cursor moves too, with diagnostics or Git changes.
+  report_flush_left()
   local cursor = { event = "cursor", path = vim.api.nvim_buf_get_name(buffer), line = vim.api.nvim_win_get_cursor(0)[1] }
   if not vim.deep_equal(cursor, last_cursor) then
     last_cursor = cursor
@@ -151,6 +169,7 @@ vim.api.nvim_create_autocmd("UIEnter", {
   once = true,
   callback = function()
     quiet = false
+    report_flush_left()
     position(vim.api.nvim_buf_get_name(0), tonumber(vim.env.OGLE_LINE))
   end,
 })
@@ -160,6 +179,19 @@ vim.api.nvim_create_autocmd("OptionSet", {
   pattern = "background",
   callback = function()
     vim.schedule(report_background)
+  end,
+})
+vim.api.nvim_create_autocmd({ "BufWinEnter", "WinEnter", "WinNew", "WinClosed", "WinResized", "TabEnter" }, {
+  group = group,
+  callback = function()
+    vim.schedule(report_flush_left)
+  end,
+})
+vim.api.nvim_create_autocmd("OptionSet", {
+  group = group,
+  pattern = { "number", "relativenumber", "signcolumn", "foldcolumn", "statuscolumn" },
+  callback = function()
+    vim.schedule(report_flush_left)
   end,
 })
 vim.api.nvim_create_autocmd("WinScrolled", {

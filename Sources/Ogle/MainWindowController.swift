@@ -4,7 +4,6 @@ import UniformTypeIdentifiers
 private extension NSToolbarItem.Identifier {
     static let find = Self("find")
     static let editor = Self("editor")
-    static let editorKind = Self("editorKind")
     static let more = Self("more")
 }
 
@@ -41,7 +40,6 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     private var previewTopLine: Double?
     private var findButton: NSButton?
     private var editorButton: NSButton?
-    private var editorKindPopUp: NSPopUpButton?
     /// The picker behind the More menu's Share item.
     private var sharePicker: NSSharingServicePicker?
 
@@ -301,19 +299,10 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         editor.save()
     }
 
-    @objc func chooseEditor(_ sender: NSMenuItem) {
-        switchEditor(to: EditorViewController.Kind(rawValue: sender.representedObject as! String)!)
-    }
-
-    @objc private func chooseEditorInPopUp(_ sender: NSPopUpButton) {
-        switchEditor(to: EditorViewController.Kind(rawValue: sender.selectedItem!.representedObject as! String)!)
-    }
-
     /// Switches the editor between Neovim and the text editor, after asking about unsaved changes.
     /// The new editor shows the line the old one had at the top, and, while linked, the preview
     /// moves to that line too, from wherever in it the preview was.
     func switchEditor(to kind: EditorViewController.Kind) {
-        defer { updateEditorKindPopUp() }
         guard kind != editor.kind, confirmDiscardingEditorChanges() else { return }
         let url = preview.documentURL
         let line = editorTopLine.flatMap { top in
@@ -329,11 +318,6 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         editor.open(url, atLine: line)
         updateSourceLine()
         window?.makeFirstResponder(editor.focusView)
-    }
-
-    /// Shows the editor's kind in the toolbar's pop-up, also after a switch was cancelled.
-    private func updateEditorKindPopUp() {
-        editorKindPopUp?.selectItem(at: editorKindPopUp?.indexOfItem(withRepresentedObject: editor.kind.rawValue) ?? -1)
     }
 
     @objc func toggleLinked(_ sender: Any?) {
@@ -412,6 +396,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     private var zoomsEditor: Bool { !linked && editorHasFocus }
 
     private func changeZoom(_ step: Zoom.Step) {
+        if preview.showsLightbox && !zoomsEditor { return preview.zoomLightbox(step) }
         if !linked { lastActivePane = zoomsEditor ? .editor : .preview }
         if zoomsEditor {
             editor.zoom = step.apply(to: editor.zoom)
@@ -505,9 +490,6 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
             return preview.documentURL != nil
         case #selector(saveDocument(_:)):
             return editor.canSave && !editorItem.isCollapsed
-        case #selector(chooseEditor(_:)):
-            menuItem.state = menuItem.representedObject as? String == editor.kind.rawValue ? .on : .off
-            return true
         case #selector(toggleCursorHighlight(_:)):
             menuItem.state = highlightsCursor ? .on : .off
             return true
@@ -535,7 +517,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     // MARK: NSToolbarDelegate
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace, .find, .editorKind, .editor, .more]
+        [.toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace, .find, .editor, .more]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -570,22 +552,6 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
             let item = NSToolbarItem(itemIdentifier: itemIdentifier)
             item.label = "Editor"
             item.view = button
-            return item
-        case .editorKind:
-            let popUp = NSPopUpButton(frame: .zero, pullsDown: false)
-            popUp.bezelStyle = .toolbar
-            for kind in EditorViewController.Kind.allCases {
-                popUp.addItem(withTitle: kind.title)
-                popUp.lastItem!.representedObject = kind.rawValue
-            }
-            popUp.target = self
-            popUp.action = #selector(chooseEditorInPopUp(_:))
-            popUp.toolTip = "Editor"
-            editorKindPopUp = popUp
-            updateEditorKindPopUp()
-            let item = NSToolbarItem(itemIdentifier: itemIdentifier)
-            item.label = "Editor Kind"
-            item.view = popUp
             return item
         case .more:
             let item = NSMenuToolbarItem(itemIdentifier: itemIdentifier)

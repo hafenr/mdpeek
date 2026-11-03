@@ -15,6 +15,26 @@ struct Timeout: Error, CustomStringConvertible {
     let description: String
 }
 
+/// Tests that run for each editor, in subclasses that set `kind`.
+@MainActor
+class EditorTestCase: XCTestCase {
+    class var kind: EditorViewController.Kind? { nil }
+
+    /// Where the editor's top goes when asked for `line`: Neovim shows whole lines only.
+    func shown(_ line: Double) -> Double {
+        Self.kind == .neovim ? line.rounded(.down) : line
+    }
+
+    var otherKind: EditorViewController.Kind { Self.kind == .neovim ? .text : .neovim }
+
+    func makeWindow() throws -> TestWindow {
+        guard let kind = Self.kind else { throw XCTSkip("Runs in the subclasses, for each editor") }
+        let window = try TestWindow(kind: kind)
+        addTeardownBlock { @MainActor in window.close() }
+        return window
+    }
+}
+
 /// Ogle's window on a generated document, with the editor shown, out of sight: transparent,
 /// behind other windows and ignoring the mouse. Neovim runs with a HOME of its own, so without
 /// the user's configuration. Needs the app built by build.sh, whose resources it uses.
@@ -34,6 +54,7 @@ final class TestWindow {
                 "- L\(line + 6) An item", "- L\(line + 7) An item", "- L\(line + 8) An item", "",
             ]
         }
+        lines += ["```mermaid", "flowchart LR", "  A[Start] --> B[Middle] --> C[End]", "```"]
         return lines.joined(separator: "\n")
     }()
 
@@ -125,6 +146,91 @@ final class TestWindow {
         controller.preview.scrollToHeading(heading.id)
     }
 
+    /// Opens the diagram at the end of the document on its own, as its "Open full window" button does.
+    func openDiagram() throws {
+        try wait("the diagram to render") {
+            try self.script("return document.querySelector('.mermaid-figure .mermaid-diagram svg') !== null") as? Bool == true
+        }
+        try script("document.querySelector('.mermaid-figure [data-action=\"expand\"]').click()")
+        try wait("the diagram to open") { self.controller.preview.showsLightbox }
+    }
+
+    func closeDiagram() throws {
+        try script("document.querySelector('.lightbox [data-action=\"close\"]').click()")
+        try wait("the diagram to close") { !self.controller.preview.showsLightbox }
+    }
+
+    /// The open diagram's viewBox: x, y, width and height, rounded.
+    func diagramView() throws -> [Double]? {
+        try script("""
+            const svg = document.querySelector(".lightbox svg");
+            return svg && svg.getAttribute("viewBox").split(" ").map((value) => Math.round(Number(value)));
+            """) as? [Double]
+    }
+
+    /// Which way the open diagram's view moved since it was `before`, as a scroll moves it:
+    /// "down" shows what is below. A change of size is "in" or "out", for zooming.
+    func diagramChange(from before: [Double]) throws -> [String] {
+        let after = try diagramView()!
+        guard after[2] == before[2] else { return [after[2] < before[2] ? "in" : "out"] }
+        return [
+            after[0] < before[0] ? "left" : after[0] > before[0] ? "right" : nil,
+            after[1] < before[1] ? "up" : after[1] > before[1] ? "down" : nil,
+        ].compactMap { $0 }
+    }
+
+    /// Turns the mouse's scroll wheel over the middle of the preview, down for positive lines,
+    /// with Command held if asked.
+    func scrollWheelOverPreview(lines: Int32, command: Bool = false) {
+        let webView = controller.preview.webView!
+        let center = webView.convert(NSPoint(x: webView.bounds.midX, y: webView.bounds.midY), to: nil)
+        let event = CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 1, wheel1: -lines, wheel2: 0, wheel3: 0)!
+        // An event without a window gives its location on the screen as its location in the
+        // window, which the web view reads: the screen point that is the window's.
+        event.location = CGPoint(x: center.x, y: NSScreen.screens[0].frame.height - center.y)
+        // Otherwise the keys held on the keyboard at the time.
+        event.flags = command ? .maskCommand : []
+        webView.scrollWheel(with: NSEvent(cgEvent: event)!)
+        // The page gets it later than scripts run after it.
+        RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.3))
+    }
+
+    /// Drags the mouse across the middle of the preview by `distance`, in the window's coordinates.
+    func dragOverPreview(by distance: CGSize) {
+        let webView = controller.preview.webView!
+        let start = webView.convert(NSPoint(x: webView.bounds.midX, y: webView.bounds.midY), to: nil)
+        let number = controller.window!.windowNumber
+        func event(_ type: NSEvent.EventType, _ fraction: CGFloat) -> NSEvent {
+            NSEvent.mouseEvent(
+                with: type, location: NSPoint(x: start.x + distance.width * fraction, y: start.y + distance.height * fraction),
+                modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: number, context: nil,
+                eventNumber: 0, clickCount: 1, pressure: type == .leftMouseUp ? 0 : 1)!
+        }
+        webView.mouseDown(with: event(.leftMouseDown, 0))
+        for step in 1...10 {
+            webView.mouseDragged(with: event(.leftMouseDragged, CGFloat(step) / 10))
+            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.02))
+        }
+        webView.mouseUp(with: event(.leftMouseUp, 1))
+        RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.2))
+    }
+
+    /// Pinches the open diagram to `scale`, as WebKit reports a trackpad's pinch to the page.
+    func pinchDiagram(to scale: Double) throws {
+        try script("""
+            const overlay = document.querySelector(".lightbox");
+            const gesture = (type, scale) => {
+              const event = new Event(type, { bubbles: true, cancelable: true });
+              Object.assign(event, { scale, clientX: innerWidth / 2, clientY: innerHeight / 2 });
+              overlay.dispatchEvent(event);
+            };
+            gesture("gesturestart", 1);
+            gesture("gesturechange", (1 + scale) / 2);
+            gesture("gesturechange", scale);
+            gesture("gestureend", scale);
+            """, ["scale": scale])
+    }
+
     func resize(toWidth width: CGFloat) throws {
         let window = controller.window!
         window.setFrame(NSRect(origin: window.frame.origin, size: NSSize(width: width, height: window.frame.height)), display: true)
@@ -132,6 +238,15 @@ final class TestWindow {
     }
 
     // MARK: Observing
+
+    /// The editor running in the pane, as its view tells.
+    var runningEditor: EditorViewController.Kind? {
+        switch controller.editor.focusView {
+        case is NSTextView: .text
+        case is TerminalView: .neovim
+        default: nil
+        }
+    }
 
     /// The tops once they are `expected`, or as they are when that does not happen in time.
     func tops(becoming expected: Tops) throws -> Tops {

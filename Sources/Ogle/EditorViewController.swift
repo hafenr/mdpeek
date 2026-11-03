@@ -90,8 +90,14 @@ final class EditorViewController: NSViewController, LocalProcessTerminalViewDele
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
+    /// Between Neovim's grid and the pane's left edge, while its text would touch the edge
+    /// otherwise, without line numbers or signs before it.
+    private static let neovimMargin: CGFloat = 12
+    private var pane: PaneView { view as! PaneView }
+    private var contentLeading: NSLayoutConstraint?
+
     override func loadView() {
-        view = NSView()
+        view = PaneView()
     }
 
     /// Shows the file at `url` in the editor, with `line` at the top if given, starting the
@@ -152,7 +158,13 @@ final class EditorViewController: NSViewController, LocalProcessTerminalViewDele
             case .cursor(let path, let line): self?.onCursorMove?(URL(fileURLWithPath: path), line)
             case .modified(let modified): self?.hasUnsavedChanges = modified
             case .background(let color):
-                if case .neovim(let terminal, _) = self?.session { terminal.setBackground(color) }
+                guard let self, case .neovim(let terminal, _) = session else { return }
+                // Neovim's background, for the margins around its grid, or the system's if it has none.
+                let background = color.map { NSColor(srgbHex: $0) } ?? .textBackgroundColor
+                terminal.nativeBackgroundColor = background
+                pane.background = background
+            case .flushLeft(let flush):
+                self?.contentLeading?.constant = flush ? Self.neovimMargin : 0
             }
         }
         connection.onError = { [weak self] error in self?.presentError(error) }
@@ -166,6 +178,7 @@ final class EditorViewController: NSViewController, LocalProcessTerminalViewDele
         // that type none (arrows, Backspace, …).
         terminal.optionAsMetaKey = false
         terminal.optionAsMetaKeyForFunctionalKeys = true
+        pane.background = terminal.nativeBackgroundColor
         install(terminal)
         session = .neovim(terminal, connection)
 
@@ -208,9 +221,11 @@ final class EditorViewController: NSViewController, LocalProcessTerminalViewDele
         view.subviews.forEach { $0.removeFromSuperview() }
         content.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(content)
+        let leading = content.leadingAnchor.constraint(equalTo: view.leadingAnchor)
+        contentLeading = leading
         NSLayoutConstraint.activate([
             content.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-            content.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            leading,
             content.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             content.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
@@ -259,14 +274,29 @@ private final class EditorTerminalView: LocalProcessTerminalView {
         let isDark = effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
         updateColorScheme(isDark ? .dark : .light)
     }
+}
 
-    /// Uses Neovim's background (0xRRGGBB) for the margins around its grid, or the system's
-    /// if Neovim has none.
-    func setBackground(_ color: Int?) {
-        nativeBackgroundColor = color.map {
-            NSColor(
-                srgbRed: CGFloat($0 >> 16 & 0xFF) / 255, green: CGFloat($0 >> 8 & 0xFF) / 255,
-                blue: CGFloat($0 & 0xFF) / 255, alpha: 1)
-        } ?? .textBackgroundColor
+/// The editor pane, filled with `background` around what it shows.
+private final class PaneView: NSView {
+    var background = NSColor.textBackgroundColor {
+        didSet { needsDisplay = true }
+    }
+
+    init() {
+        super.init(frame: .zero)
+        wantsLayer = true
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override var wantsUpdateLayer: Bool { true }
+
+    override func updateLayer() {
+        layer?.backgroundColor = resolvedCGColor(background)
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsDisplay = true
     }
 }

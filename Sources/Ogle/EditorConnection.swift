@@ -14,6 +14,8 @@ final class EditorConnection {
         case modified(Bool)
         /// The background color of Neovim's Normal highlight, as 0xRRGGBB, if it has one.
         case background(Int?)
+        /// Whether a window at the left edge of the screen shows text from its first column.
+        case flushLeft(Bool)
 
         private enum CodingKeys: String, CodingKey {
             case event, path, line, requested, value, color
@@ -35,6 +37,8 @@ final class EditorConnection {
                 self = .modified(try container.decode(Bool.self, forKey: .value))
             case "background":
                 self = .background(try container.decodeIfPresent(Int.self, forKey: .color))
+            case "flushLeft":
+                self = .flushLeft(try container.decode(Bool.self, forKey: .value))
             case let event:
                 throw DecodingError.dataCorruptedError(
                     forKey: .event, in: container, debugDescription: "Unknown event \(event)")

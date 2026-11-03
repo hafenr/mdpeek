@@ -124,6 +124,7 @@ window.ogle = (() => {
   // The start page, shown while no file is open.
   const welcome = document.getElementById("welcome");
   function showWelcome() {
+    lightbox?.close();
     generation++;
     last = null;
     content.replaceChildren();
@@ -565,7 +566,10 @@ window.ogle = (() => {
     }
   });
 
-  // Shows a diagram on its own, scaled to fill the window.
+  // Shows a diagram on its own, scaled to fill the window. It zooms (pinch, ⌘-scroll, and ⌘+,
+  // ⌘- and ⌘0 through zoomLightbox) and pans (scroll, drag, arrow keys) by changing its viewBox,
+  // which keeps it sharp, while the page behind it stays where it is. Esc or the button closes it.
+  let lightbox = null;
   function openLightbox(svg) {
     const overlay = document.createElement("div");
     overlay.className = "lightbox";
@@ -575,19 +579,103 @@ window.ogle = (() => {
     diagram.removeAttribute("style");
     diagram.setAttribute("width", "100%");
     diagram.setAttribute("height", "100%");
+    if (!diagram.getAttribute("viewBox")) {
+      const box = svg.getBBox();
+      diagram.setAttribute("viewBox", `${box.x} ${box.y} ${box.width} ${box.height}`);
+    }
     overlay.append(diagram);
     overlay.insertAdjacentHTML("beforeend", button("close", "Close", CLOSE_ICON));
+
+    const fit = (({ x, y, width, height }) => ({ x, y, width, height }))(diagram.viewBox.baseVal);
+    let view = { ...fit };
+    const show = () => diagram.setAttribute("viewBox", `${view.x} ${view.y} ${view.width} ${view.height}`);
+    // Pans by a distance in the window, as a scroll of the diagram.
+    const pan = (dx, dy) => {
+      const scale = diagram.getScreenCTM().a;
+      view = { ...view, x: view.x + dx / scale, y: view.y + dy / scale };
+      show();
+    };
+    // Zooms by `factor` around a point in the window, which stays where it is.
+    const zoomAt = (factor, clientX, clientY) => {
+      const zoom = fit.width / view.width;
+      factor = Math.min(Math.max(zoom * factor, 0.5), 40) / zoom;
+      const point = new DOMPoint(clientX, clientY).matrixTransform(diagram.getScreenCTM().inverse());
+      view = {
+        x: point.x - (point.x - view.x) / factor, y: point.y - (point.y - view.y) / factor,
+        width: view.width / factor, height: view.height / factor,
+      };
+      show();
+    };
+    const center = () => [innerWidth / 2, innerHeight / 2];
+
+    overlay.addEventListener("wheel", (event) => {
+      event.preventDefault();
+      const pixels = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 16 : 1;
+      if (event.ctrlKey || event.metaKey) zoomAt(Math.exp(-event.deltaY * pixels / 100), event.clientX, event.clientY);
+      else pan(event.deltaX * pixels, event.deltaY * pixels);
+    }, { passive: false });
+    let gestureScale = 1;
+    overlay.addEventListener("gesturestart", (event) => {
+      event.preventDefault();
+      gestureScale = 1;
+    });
+    overlay.addEventListener("gesturechange", (event) => {
+      event.preventDefault();
+      zoomAt(event.scale / gestureScale, event.clientX, event.clientY);
+      gestureScale = event.scale;
+    });
+    overlay.addEventListener("gestureend", (event) => event.preventDefault());
+    overlay.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || event.target.closest("button")) return;
+      overlay.setPointerCapture(event.pointerId);
+      overlay.classList.add("dragging");
+      let last = [event.clientX, event.clientY];
+      const move = (event) => {
+        pan(last[0] - event.clientX, last[1] - event.clientY);
+        last = [event.clientX, event.clientY];
+      };
+      const end = () => {
+        overlay.classList.remove("dragging");
+        overlay.removeEventListener("pointermove", move);
+      };
+      overlay.addEventListener("pointermove", move);
+      overlay.addEventListener("pointerup", end, { once: true });
+      overlay.addEventListener("pointercancel", end, { once: true });
+    });
+    const steps = { ArrowLeft: [-40, 0], ArrowRight: [40, 0], ArrowUp: [0, -40], ArrowDown: [0, 40] };
+    const onKey = (event) => {
+      if (event.key === "Escape") close();
+      else if (steps[event.key]) pan(...steps[event.key]);
+      // Keys that would scroll the page behind.
+      else if (![" ", "PageUp", "PageDown", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+    };
     const close = () => {
       overlay.remove();
       removeEventListener("keydown", onKey);
+      lightbox = null;
+      native({ type: "lightbox", open: false });
     };
-    const onKey = (event) => {
-      if (event.key === "Escape") close();
-    };
-    overlay.addEventListener("click", close);
+    overlay.querySelector("button").addEventListener("click", close);
     addEventListener("keydown", onKey);
     document.body.append(overlay);
     overlay.querySelector("button").focus();
+    lightbox = {
+      close,
+      zoom(step) {
+        if (step === "actualSize") {
+          view = { ...fit };
+          show();
+        } else {
+          zoomAt(step === "larger" ? 1.25 : 0.8, ...center());
+        }
+      },
+    };
+    native({ type: "lightbox", open: true });
+  }
+
+  function zoomLightbox(step) {
+    lightbox?.zoom(step);
   }
 
   // Heading ids and permalinks as GitHub generates them.
@@ -983,5 +1071,5 @@ window.ogle = (() => {
     return Math.round(line * 1000) / 1000;
   }
 
-  return { render, showWelcome, scrollToHeading, followSourceLine, sourceLineAtTop, find, findNext, clearFind, showUnsavedNotice, setCursorLine, setRecentFiles, focusOpenQuickly };
+  return { render, showWelcome, scrollToHeading, followSourceLine, sourceLineAtTop, find, findNext, clearFind, showUnsavedNotice, setCursorLine, setRecentFiles, focusOpenQuickly, zoomLightbox };
 })();

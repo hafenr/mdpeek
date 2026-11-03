@@ -5,20 +5,7 @@ import XCTest
 /// editor, in the subclasses. In the test document, line 123 is a heading, 127 a long
 /// paragraph, and 120 and 60 list items.
 @MainActor
-class LinkTests: XCTestCase {
-    class var kind: EditorViewController.Kind? { nil }
-
-    /// Where the editor's top goes when asked for `line`: Neovim shows whole lines only.
-    func shown(_ line: Double) -> Double {
-        Self.kind == .neovim ? line.rounded(.down) : line
-    }
-
-    func makeWindow() throws -> TestWindow {
-        guard let kind = Self.kind else { throw XCTSkip("Runs in the subclasses, for each editor") }
-        let window = try TestWindow(kind: kind)
-        addTeardownBlock { @MainActor in window.close() }
-        return window
-    }
+class LinkTests: EditorTestCase {
 
     // MARK: Linked
 

@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var windowController = MainWindowController()
+    private lazy var settings = SettingsWindowController(mainWindow: windowController)
     private let updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
     func applicationWillFinishLaunching(_ notification: Notification) {
@@ -28,6 +29,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowController.confirmDiscardingEditorChanges() ? .terminateNow : .terminateCancel
     }
 
+    @objc func showSettings(_ sender: Any?) {
+        settings.showWindow(nil)
+    }
+
     @objc func openDocument(_ sender: Any?) {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = Markdown.fileExtensions.compactMap { UTType(filenameExtension: $0) }
@@ -42,6 +47,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appMenu.addItem(withTitle: "About Ogle", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         appMenu.addItem(withTitle: "Check for Updates…", action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)), keyEquivalent: "")
             .target = updaterController
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Settings…", action: #selector(showSettings(_:)), keyEquivalent: ",")
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Hide Ogle", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         appMenu.addItem(withTitle: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
@@ -88,12 +95,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .keyEquivalentModifierMask = [.command, .control]
         viewMenu.addItem(withTitle: "Toggle Editor", action: #selector(MainWindowController.toggleEditor(_:)), keyEquivalent: "e")
             .keyEquivalentModifierMask = [.command, .control]
-        let editorMenu = NSMenu(title: "Editor")
-        viewMenu.addItem(withTitle: "Editor", action: nil, keyEquivalent: "").submenu = editorMenu
-        for kind in EditorViewController.Kind.allCases {
-            editorMenu.addItem(withTitle: kind.title, action: #selector(MainWindowController.chooseEditor(_:)), keyEquivalent: "")
-                .representedObject = kind.rawValue
-        }
         viewMenu.addItem(withTitle: "Link Editor and Preview", action: #selector(MainWindowController.toggleLinked(_:)), keyEquivalent: "")
         viewMenu.addItem(withTitle: "Highlight Cursor in Preview", action: #selector(MainWindowController.toggleCursorHighlight(_:)), keyEquivalent: "")
         viewMenu.addItem(.separator())

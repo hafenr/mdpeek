@@ -38,6 +38,11 @@ final class PreviewViewController: NSViewController, WKNavigationDelegate, WKScr
     /// Called with the source line at the top of the view as the user scrolls it.
     var onScroll: ((Double) -> Void)?
     var onZoomChange: ((CGFloat) -> Void)?
+    /// Whether a diagram is open on its own, over the page; it takes the zoom, and pinching
+    /// magnifies it rather than the page.
+    private(set) var showsLightbox = false {
+        didSet { webView.allowsMagnification = !showsLightbox }
+    }
     var onWordCountChange: ((Int) -> Void)?
     /// Called with the current section as the status bar shows it: "Download · 3 of 9".
     var onSectionTextChange: ((String?) -> Void)?
@@ -283,6 +288,15 @@ final class PreviewViewController: NSViewController, WKNavigationDelegate, WKScr
         setZoom(step.apply(to: webView.pageZoom))
     }
 
+    func zoomLightbox(_ step: Zoom.Step) {
+        let name = switch step {
+        case .larger: "larger"
+        case .smaller: "smaller"
+        case .actualSize: "actualSize"
+        }
+        webView.callAsyncJavaScript("ogle.zoomLightbox(step)", arguments: ["step": name], in: nil, in: .page)
+    }
+
     func setZoom(_ zoom: CGFloat) {
         webView.pageZoom = zoom
         onZoomChange?(zoom)
@@ -339,6 +353,8 @@ final class PreviewViewController: NSViewController, WKNavigationDelegate, WKScr
             findBar.setResult(index: index, count: count)
         case "escape":
             hideFindBar()
+        case "lightbox":
+            showsLightbox = body["open"] as? Bool ?? false
         case "openRecent":
             guard let path = body["path"] as? String else { return }
             onOpenRecent?(URL(fileURLWithPath: path), body["withEditor"] as? Bool ?? false)

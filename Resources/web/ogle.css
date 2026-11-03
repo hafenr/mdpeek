@@ -201,13 +201,22 @@ body {
   z-index: 10;
   box-sizing: border-box;
   padding: 48px;
+  overflow: hidden;
   background: var(--page-bg);
+  cursor: grab;
+  touch-action: none;
 }
 
+.lightbox.dragging {
+  cursor: grabbing;
+}
+
+/* Zoomed in, the diagram spreads into the padding, up to the window's edges. */
 .lightbox svg {
   display: block;
   max-width: 100%;
   max-height: 100%;
+  overflow: visible;
 }
 
 .lightbox .md-button {
